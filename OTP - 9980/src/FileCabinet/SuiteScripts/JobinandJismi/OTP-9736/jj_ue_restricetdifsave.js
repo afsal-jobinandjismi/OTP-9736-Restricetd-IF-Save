@@ -2,8 +2,50 @@
  * @NApiVersion 2.1
  * @NScriptType UserEventScript
  */
+
+/************************************************************************************************ 
+ *  
+ * OTP-9736 : Restrict IF save
+ * 
+************************************************************************************************* 
+ * 
+ * Author: Jobin and Jismi IT Services 
+ * 
+ * Date Created : 28-October-2025 
+ * 
+ * Description : This User Event Script restricts the saving of an Item Fulfillment record
+ *               if the associated Sales Order is in 'Pending Fulfillment' status and 
+ *              the total Customer Deposit applied is less than the Sales Order total amount.
+ *              The script runs on the 'beforeSubmit' event during the creation of an Item Fulfillment.
+ * 
+ * REVISION HISTORY
+ *
+ * @version 1.0 : 28-October-2025 :  The initial build was created by JJ0414
+ * 
+*************************************************************************************************/
+
+
 define(['N/record', 'N/runtime', 'N/search', 'N/error'],
+
+
+
+
     (record, runtime, search, error) => {
+
+        /**
+         * Defines the function definition that is executed before record is loaded.
+         * @param {Object} scriptContext
+         * @param {Record} scriptContext.newRecord - New record
+         * @param {string} scriptContext.type - Trigger type; use values from the context.UserEventType enum
+         * @param {Form} scriptContext.form - Current form
+         * @param {ServletRequest} scriptContext.request - HTTP request information sent from the browser for a client action only.
+         * @since 2015.2
+         * 
+         *  Checks if the Item Fulfillment is being created from a Sales Order with 'Pending Fulfillment' status.
+         *  If so, it verifies if the total Customer Deposit applied is less than the Sales Order total.
+         *  If the deposit is insufficient, it throws an error to block the save operation.
+         */
+
  
         const beforeSubmit = (scriptContext) => {
                 log.debug('Event Type', scriptContext.type);
