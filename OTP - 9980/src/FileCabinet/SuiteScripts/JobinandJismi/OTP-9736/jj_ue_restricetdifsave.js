@@ -46,69 +46,77 @@ define(['N/record', 'N/runtime', 'N/search', 'N/error'],
          *  If the deposit is insufficient, it throws an error to block the save operation.
          */
 
- 
+
         const beforeSubmit = (scriptContext) => {
-                log.debug('Event Type', scriptContext.type);
 
             try {
                 const execContext = runtime.executionContext;
- 
+
                 if (execContext !== runtime.ContextType.USER_INTERFACE) {
-                    log.debug('Skipping', 'Not triggered from UI');
                     return;
                 }
- 
+
                 if (scriptContext.type !== scriptContext.UserEventType.CREATE) {
-                    log.debug('Skipping', 'Not a CREATE operation');
                     return;
                 }
- 
+
                 const newRecord = scriptContext.newRecord;
                 const salesOrderId = newRecord.getValue({ fieldId: 'createdfrom' });
- 
+
                 if (!salesOrderId) {
-                    log.debug('Skipping', 'Item Fulfillment not created from Sales Order');
                     return;
                 }
- 
-                const salesOrder = record.load({
-                    type: record.Type.SALES_ORDER,
+
+                const soFields = search.lookupFields({
+                    type: search.Type.SALES_ORDER,
                     id: salesOrderId,
-                    isDynamic: false
+                    columns: ['status', 'total']
                 });
- 
-                const soStatus = salesOrder.getText({ fieldId: 'status' });
-                const soTotal = parseFloat(salesOrder.getValue({ fieldId: 'total' })) || 0;
- 
-                log.debug('Sales Order Details', 'Status: ' + soStatus + ', Total: ₹' + soTotal.toFixed(2));
- 
+
+                const soStatus = soFields.status[0] ? soFields.status[0].text : '';
+                const soTotal = parseFloat(soFields.total) || 0;
+
                 if (soStatus !== 'Pending Fulfillment') {
-                    log.debug('Skipping', 'Sales Order is not in Pending Fulfillment');
                     return;
                 }
- 
+
                 const depositTotal = getCustomerDepositTotal(salesOrderId);
- 
-                log.debug('Deposit Check', 'Deposit Total: ₹' + depositTotal.toFixed(2) + ', SO Total: ₹' + soTotal.toFixed(2));
- 
+
                 if (depositTotal < soTotal) {
-                    const message = 'Deposit ₹' + depositTotal.toFixed(2) + ' is less than Sales Order total ₹' + soTotal.toFixed(2) + '. Fulfillment blocked.';
-                   
+                    const message = 'Deposit ₹' + depositTotal.toFixed(2) +
+                        ' is less than Sales Order total ₹' + soTotal.toFixed(2) +
+                        '. Fulfillment blocked.';
+
                     throw error.create({
                         name: 'INSUFFICIENT_DEPOSIT',
                         message: message,
                         notifyOff: false
                     });
+
+
                 }
- 
+
                 log.audit('Validation Passed', 'Sufficient deposit found. Fulfillment allowed.');
- 
+
             } catch (e) {
                 log.error('Error in beforeSubmit', e.toString());
                 throw e;
             }
         };
- 
+
+        /**
+         * Retrieves the total Customer Deposit amount applied to a given Sales Order.
+         *
+         * @param {string|number} salesOrderId - Internal ID of the Sales Order record.
+         * @returns {number} The sum of all Customer Deposit totals linked to the Sales Order.
+         *
+         * @throws {Error} Logs and returns 0 if an error occurs during the search execution.
+         *
+         * @example
+         * const depositTotal = getCustomerDepositTotal(12345);
+         * // depositTotal = 5000.00
+         */
+
         function getCustomerDepositTotal(salesOrderId) {
             try {
                 const depositSearch = search.create({
@@ -120,9 +128,9 @@ define(['N/record', 'N/runtime', 'N/search', 'N/error'],
                     ],
                     columns: ['total']
                 });
- 
+
                 let depositTotal = 0;
- 
+
                 depositSearch.run().each(function (result) {
                     const amount = parseFloat(result.getValue('total'));
                     if (!isNaN(amount)) {
@@ -130,16 +138,15 @@ define(['N/record', 'N/runtime', 'N/search', 'N/error'],
                     }
                     return true;
                 });
- 
+
                 return depositTotal;
- 
+
             } catch (e) {
                 log.error('Error in getCustomerDepositTotal', e.toString());
                 return 0;
             }
         }
- 
+
         return { beforeSubmit };
     });
- 
- 
+
